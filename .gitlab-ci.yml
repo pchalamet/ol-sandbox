@@ -1,0 +1,52 @@
+stages:
+  - build
+  - publish
+  - deploy-test
+  - deploy-prod
+
+build:
+  stage: build
+  image: node:latest
+  script:
+   - make install
+   - make build
+  artifacts:
+    name: "${CI_COMMIT_SHA}"
+    paths:
+    - dist
+
+publish:
+  stage: publish
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+   - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+   - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+  only:
+    - tags
+
+deploy-test:
+  stage: deploy-test   # build image only after test passed
+  image: docker:git # use simply git docker image
+  services:
+    - docker:dind
+  script:
+    - env
+  environment:
+    name: test
+    url: https://tests.vizunode.topoeverywhere.com
+  when: manual
+  only:
+    - tags
+
+deploy_prod:
+  stage: deploy-prod   # build image only after test passed
+  script:
+    - echo "deploying on production..."
+  environment:
+    name: production
+    url: https://vizunode.topoeverywhere.com
+  when: manual
+  only:
+    - tags
